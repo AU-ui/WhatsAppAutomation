@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, Search, Star, Package } from 'lucide-react'
 import { productsApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
+import { getNicheConfig } from '../config/niches'
 
 type ProductForm = {
   name: string; description: string; price: string; discountedPrice: string;
@@ -19,12 +20,14 @@ const EMPTY_FORM: ProductForm = {
 }
 
 function ProductModal({
-  product, categories, onClose,
+  product, categories, onClose, businessType,
 }: {
   product?: Record<string, unknown> | null
   categories: { _id: string; name: string; emoji: string }[]
   onClose: () => void
+  businessType?: string
 }) {
+  const niche = getNicheConfig(businessType)
   const queryClient = useQueryClient()
   const [form, setForm] = useState<ProductForm>(
     product ? {
@@ -83,14 +86,14 @@ function ProductModal({
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
-              <label className="label">Product Name *</label>
-              <input className="input" placeholder="e.g. Chicken Biryani" required {...f('name')} />
+              <label className="label">{niche.productsLabel.replace('& ', '').replace('s', '')} Name *</label>
+              <input className="input" placeholder={`e.g. ${niche.productTypes[0]?.label.replace(/[^\w\s]/g, '').trim()}`} required {...f('name')} />
             </div>
             <div>
               <label className="label">Type</label>
               <select className="input" {...f('type')}>
-                {['product','service','menu_item','room','property','package','appointment'].map(t => (
-                  <option key={t} value={t}>{t.replace('_', ' ')}</option>
+                {niche.productTypes.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
                 ))}
               </select>
             </div>
@@ -108,8 +111,8 @@ function ProductModal({
               <input className="input" type="number" step="0.01" min="0" placeholder="0.00" required {...f('price')} />
             </div>
             <div>
-              <label className="label">Discounted Price</label>
-              <input className="input" type="number" step="0.01" min="0" placeholder="Optional" {...f('discountedPrice')} />
+              <label className="label">Sale / Offer Price</label>
+              <input className="input" type="number" step="0.01" min="0" placeholder="Leave blank if no offer" {...f('discountedPrice')} />
             </div>
             <div>
               <label className="label">Stock (-1 = unlimited)</label>
@@ -117,7 +120,9 @@ function ProductModal({
             </div>
             <div>
               <label className="label">Unit</label>
-              <input className="input" placeholder="piece, kg, night..." {...f('unit')} />
+              <select className="input" {...f('unit')}>
+                {niche.productUnits.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
             </div>
             <div className="col-span-2">
               <label className="label">Description</label>
@@ -165,6 +170,7 @@ function ProductModal({
 
 export default function Products() {
   const { tenant } = useAuth()
+  const niche = getNicheConfig(tenant?.businessType)
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [catFilter, setCatFilter] = useState('')
@@ -203,7 +209,7 @@ export default function Products() {
           {categories.map(c => <option key={c._id} value={c._id}>{c.emoji} {c.name}</option>)}
         </select>
         <button onClick={() => { setEditProduct(null); setShowModal(true) }} className="btn-primary shrink-0">
-          <Plus size={16} /> Add Product
+          <Plus size={16} /> {niche.newProductLabel}
         </button>
       </div>
 
@@ -291,6 +297,7 @@ export default function Products() {
         <ProductModal
           product={editProduct}
           categories={categories}
+          businessType={tenant?.businessType}
           onClose={() => { setShowModal(false); setEditProduct(null) }}
         />
       )}

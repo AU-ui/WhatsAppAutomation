@@ -4,17 +4,7 @@ import {
   Zap, ShoppingBag, Settings, MessageSquare, ChevronRight, X,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-
-const navItems = [
-  { path: '/',           icon: LayoutDashboard, label: 'Dashboard',  exact: true },
-  { path: '/customers',  icon: Users,           label: 'Customers'  },
-  { path: '/products',   icon: Package,         label: 'Catalog'    },
-  { path: '/orders',     icon: ShoppingBag,     label: 'Orders'     },
-  { path: '/broadcasts', icon: Megaphone,       label: 'Broadcasts' },
-  { path: '/flows',      icon: Zap,             label: 'Auto Flows' },
-  { path: '/analytics',  icon: BarChart2,       label: 'Analytics'  },
-  { path: '/settings',   icon: Settings,        label: 'Settings'   },
-]
+import { getNicheConfig } from '../../config/niches'
 
 interface SidebarProps {
   open: boolean
@@ -24,6 +14,18 @@ interface SidebarProps {
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const { tenant } = useAuth()
   const location = useLocation()
+  const niche = getNicheConfig(tenant?.businessType)
+
+  const navItems = [
+    { path: '/',           icon: LayoutDashboard, label: 'Dashboard',               exact: true },
+    { path: '/customers',  icon: Users,           label: niche.customersLabel                   },
+    { path: '/products',   icon: Package,         label: niche.productsLabel                    },
+    { path: '/orders',     icon: ShoppingBag,     label: niche.ordersLabel                      },
+    { path: '/broadcasts', icon: Megaphone,       label: niche.broadcastsLabel                  },
+    { path: '/flows',      icon: Zap,             label: 'Auto Flows'                           },
+    { path: '/analytics',  icon: BarChart2,       label: 'Analytics'                            },
+    { path: '/settings',   icon: Settings,        label: 'Settings'                             },
+  ]
 
   const planColors: Record<string, string> = {
     trial:      'badge-yellow',

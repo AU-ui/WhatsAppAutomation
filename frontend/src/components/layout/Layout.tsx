@@ -2,21 +2,25 @@ import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
-
-const pageTitles: Record<string, string> = {
-  '/':           'Dashboard',
-  '/customers':  'Customers',
-  '/products':   'Catalog & Products',
-  '/orders':     'Orders',
-  '/broadcasts': 'Broadcasts & Campaigns',
-  '/flows':      'Auto Flows',
-  '/analytics':  'Analytics',
-  '/settings':   'Settings',
-}
+import { useAuth } from '../../context/AuthContext'
+import { getNicheConfig } from '../../config/niches'
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
+  const { tenant } = useAuth()
+  const niche = getNicheConfig(tenant?.businessType)
+
+  const pageTitles: Record<string, string> = {
+    '/':           'Dashboard',
+    '/customers':  niche.customersLabel,
+    '/products':   niche.productsLabel,
+    '/orders':     niche.ordersLabel,
+    '/broadcasts': niche.broadcastsLabel,
+    '/flows':      'Auto Flows',
+    '/analytics':  'Analytics',
+    '/settings':   'Settings',
+  }
 
   const title = Object.entries(pageTitles)
     .filter(([path]) => path !== '/' || location.pathname === '/')

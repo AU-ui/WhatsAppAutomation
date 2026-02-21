@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Filter, Ban, CheckCircle, Send, Tag, ChevronLeft, ChevronRight, User } from 'lucide-react'
+import { Search, Filter, Ban, CheckCircle, Send, Tag, ChevronLeft, ChevronRight, User, UserPlus } from 'lucide-react'
 import { customersApi } from '../services/api'
+import api from '../services/api'
 import toast from 'react-hot-toast'
 
 const TAG_COLORS: Record<string, string> = {
@@ -9,6 +10,68 @@ const TAG_COLORS: Record<string, string> = {
   lead: 'badge-gray', hot_lead: 'badge-yellow', cold_lead: 'badge-gray',
   churned: 'badge-red', hotel_guest: 'badge-blue', restaurant_diner: 'badge-blue',
   grocery_buyer: 'badge-green', property_lead: 'badge-purple',
+}
+
+function AddCustomerModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const [phone, setPhone] = useState('')
+  const [name, setName] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleAdd = async () => {
+    const cleaned = phone.replace(/[\s\-\(\)]/g, '')
+    if (!cleaned) { toast.error('Enter a phone number'); return }
+    setSaving(true)
+    try {
+      await api.post('/customers/import', { phone: cleaned, name: name.trim() || undefined })
+      toast.success('Customer added! They will receive broadcasts automatically.')
+      onAdded()
+      onClose()
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } }
+      toast.error(e?.response?.data?.message || 'Failed to add customer')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-sm">
+        <h3 className="text-base font-semibold text-white mb-1">Add Customer</h3>
+        <p className="text-xs text-gray-500 mb-4">
+          Add a number manually to receive all future WhatsApp broadcasts automatically.
+        </p>
+        <div className="space-y-3">
+          <div>
+            <label className="label">Phone Number *</label>
+            <input
+              className="input font-mono"
+              placeholder="e.g. 919876543210 (with country code, no +)"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              autoFocus
+            />
+            <p className="text-[10px] text-gray-600 mt-1">Include country code, no + sign. Example: 919876543210</p>
+          </div>
+          <div>
+            <label className="label">Name (optional)</label>
+            <input
+              className="input"
+              placeholder="Customer name"
+              value={name}
+              onChange={e => setName(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+          <button onClick={handleAdd} disabled={saving || !phone.trim()} className="btn-primary flex-1">
+            {saving ? 'Adding...' : 'Add Customer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function MessageModal({ customer, onClose }: { customer: { _id: string; name?: string; phone: string }; onClose: () => void }) {
@@ -67,6 +130,7 @@ export default function Customers() {
   const [search, setSearch] = useState('')
   const [tagFilter, setTagFilter] = useState('')
   const [msgTarget, setMsgTarget] = useState<{ _id: string; name?: string; phone: string } | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['customers', page, search, tagFilter],
@@ -106,6 +170,13 @@ export default function Customers() {
             <p className={`text-xl font-bold ${color} mt-0.5`}>{value.toLocaleString()}</p>
           </div>
         ))}
+      </div>
+
+      {/* Add customer button */}
+      <div className="flex justify-end">
+        <button onClick={() => setShowAddModal(true)} className="btn-primary">
+          <UserPlus size={15} /> Add Customer
+        </button>
       </div>
 
       {/* Filters */}
@@ -259,6 +330,12 @@ export default function Customers() {
       </div>
 
       {msgTarget && <MessageModal customer={msgTarget} onClose={() => setMsgTarget(null)} />}
+      {showAddModal && (
+        <AddCustomerModal
+          onClose={() => setShowAddModal(false)}
+          onAdded={() => queryClient.invalidateQueries({ queryKey: ['customers'] })}
+        />
+      )}
     </div>
   )
 }

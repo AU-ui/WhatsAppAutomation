@@ -146,6 +146,34 @@ export async function getCustomerStats(req: Request, res: Response): Promise<voi
   })
 }
 
+export async function importCustomer(req: Request, res: Response): Promise<void> {
+  const { phone, name } = req.body
+  if (!phone) { res.status(400).json({ success: false, message: 'Phone number is required' }); return }
+
+  // Normalize: strip non-digits
+  const normalized = String(phone).replace(/\D/g, '')
+  if (normalized.length < 7) { res.status(400).json({ success: false, message: 'Invalid phone number' }); return }
+
+  const db = getDb()
+  const existing = db.prepare('SELECT id FROM customers WHERE tenantId = ? AND phone = ?').get(req.tenantId, normalized) as { id: string } | undefined
+  if (existing) {
+    // Already exists — ensure optIn = 1
+    db.prepare('UPDATE customers SET optIn = 1 WHERE id = ?').run(existing.id)
+    res.json({ success: true, message: 'Customer already exists — opt-in confirmed', customerId: existing.id })
+    return
+  }
+
+  const id = generateId()
+  const now = nowIso()
+  db.prepare(`
+    INSERT INTO customers (id, tenantId, phone, name, optIn, isBlocked, tags, customFields, conversationContext, totalOrders, totalSpent, leadScore, firstSeenAt, lastMessageAt, createdAt)
+    VALUES (?, ?, ?, ?, 1, 0, '[]', '{}', '{}', 0, 0, 0, ?, ?, ?)
+  `).run(id, req.tenantId, normalized, name || null, now, now, now)
+
+  const row = db.prepare('SELECT * FROM customers WHERE id = ?').get(id) as Record<string, unknown>
+  res.status(201).json({ success: true, message: 'Customer added', data: parseCustomer(row) })
+}
+
 export async function sendDirectMessage(req: Request, res: Response): Promise<void> {
   const { message } = req.body
   const db = getDb()
