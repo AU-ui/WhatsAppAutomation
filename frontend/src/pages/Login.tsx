@@ -24,12 +24,13 @@ export default function Login() {
       toast.success('Welcome back!')
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string }; status?: number } }
-      const msg = error?.response?.data?.message || 'Invalid credentials'
       setAttempts(a => a + 1)
-      if (error?.response?.status === 429) {
-        toast.error(msg, { duration: 8000 })
+      if (!error?.response) {
+        toast.error('Cannot connect to backend — run: cd backend && npm run dev', { duration: 7000 })
+      } else if (error.response.status === 429) {
+        toast.error(error.response.data?.message || 'Too many attempts', { duration: 8000 })
       } else {
-        toast.error(msg)
+        toast.error(error.response.data?.message || 'Invalid email or password')
       }
     } finally {
       setLoading(false)
