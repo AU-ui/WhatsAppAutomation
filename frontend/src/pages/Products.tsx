@@ -5,6 +5,7 @@ import { productsApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
 import { getNicheConfig } from '../config/niches'
+import BroadcastFlowModal, { PendingBroadcast } from '../components/BroadcastFlowModal'
 
 type ProductForm = {
   name: string; description: string; price: string; discountedPrice: string;
@@ -24,7 +25,7 @@ function ProductModal({
 }: {
   product?: Record<string, unknown> | null
   categories: { _id: string; name: string; emoji: string }[]
-  onClose: () => void
+  onClose: (pending?: PendingBroadcast | null, isOffer?: boolean) => void
   businessType?: string
 }) {
   const niche = getNicheConfig(businessType)
@@ -53,10 +54,11 @@ function ProductModal({
       product
         ? productsApi.update(product._id as string, data)
         : productsApi.create(data),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
       toast.success(product ? 'Product updated!' : 'Product created!')
-      onClose()
+      const pending = res.data?.pendingBroadcast as PendingBroadcast | null
+      onClose(pending || null, !!(res.data?.data as Record<string, unknown>)?.discountedPrice)
     },
     onError: () => toast.error('Failed to save product'),
   })
@@ -157,7 +159,7 @@ function ProductModal({
             </div>
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+            <button type="button" onClick={() => onClose(null)} className="btn-secondary flex-1">Cancel</button>
             <button type="submit" disabled={mutation.isPending} className="btn-primary flex-1">
               {mutation.isPending ? 'Saving...' : product ? 'Update' : 'Create'}
             </button>
@@ -176,6 +178,7 @@ export default function Products() {
   const [catFilter, setCatFilter] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editProduct, setEditProduct] = useState<Record<string, unknown> | null>(null)
+  const [broadcastFlow, setBroadcastFlow] = useState<{ broadcast: PendingBroadcast; productName: string; isOffer: boolean } | null>(null)
 
   const { data: productsData, isLoading } = useQuery({
     queryKey: ['products', search, catFilter],
@@ -298,7 +301,23 @@ export default function Products() {
           product={editProduct}
           categories={categories}
           businessType={tenant?.businessType}
-          onClose={() => { setShowModal(false); setEditProduct(null) }}
+          onClose={(pending, isOffer) => {
+            setShowModal(false)
+            const savedName = (editProduct?.name as string) || 'Product'
+            setEditProduct(null)
+            if (pending) {
+              setBroadcastFlow({ broadcast: pending, productName: savedName, isOffer: !!isOffer })
+            }
+          }}
+        />
+      )}
+
+      {broadcastFlow && (
+        <BroadcastFlowModal
+          broadcast={broadcastFlow.broadcast}
+          productName={broadcastFlow.productName}
+          isOffer={broadcastFlow.isOffer}
+          onClose={() => setBroadcastFlow(null)}
         />
       )}
     </div>

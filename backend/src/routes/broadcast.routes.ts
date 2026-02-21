@@ -17,6 +17,7 @@ router.get('/:id', getBroadcast)
 router.patch('/:id', updateBroadcast)
 router.post('/:id/schedule', requirePlan(['basic', 'pro', 'enterprise']), scheduleBroadcast)
 router.post('/:id/send-now', requirePlan(['basic', 'pro', 'enterprise']), sendBroadcastNow)
+router.post('/:id/send-auto', sendBroadcastNow)   // for auto-triggered pending broadcasts (no plan required)
 router.post('/:id/cancel', cancelBroadcast)
 router.get('/:id/stats', getBroadcastStats)
 

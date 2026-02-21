@@ -64,6 +64,11 @@ export const productsApi = {
 }
 
 // ─── Broadcasts ───────────────────────────────────────────────────
+export const pendingBroadcastApi = {
+  sendNow: (id: string) => api.post(`/broadcasts/${id}/send-auto`),
+  cancel: (id: string) => api.post(`/broadcasts/${id}/cancel`),
+}
+
 export const broadcastsApi = {
   list: (params?: Record<string, unknown>) => api.get('/broadcasts', { params }),
   get: (id: string) => api.get(`/broadcasts/${id}`),

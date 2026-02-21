@@ -124,21 +124,24 @@ export async function createProduct(req: Request, res: Response): Promise<void> 
   const row = db.prepare('SELECT * FROM products WHERE id = ?').get(id) as Record<string, unknown>
   const product = parseProduct(row)!
 
-  // AUTO-BROADCAST — always fires, zero human intervention needed
-  // Offer message if discounted price set, otherwise new-arrival message
+  // AUTO-BROADCAST — schedules a 20-second pending broadcast; returned to frontend
   const tenantCurrencyRow = db.prepare('SELECT currency FROM tenants WHERE id = ?').get(req.tenantId) as { currency?: string }
   const tenantCurrency = tenantCurrencyRow?.currency || 'USD'
   const pName = String(name || '')
   const pDesc = String(description || '')
   const pPrice = Number(price || 0)
   const pDiscounted = discountedPrice ? Number(discountedPrice) : 0
-  if (pDiscounted > 0) {
-    notifyOfferProduct(String(req.tenantId), pName, pDesc, pPrice, pDiscounted, tenantCurrency).catch(() => {})
-  } else {
-    notifyNewProduct(String(req.tenantId), pName, pDesc, pPrice, tenantCurrency).catch(() => {})
-  }
 
-  res.status(201).json({ success: true, data: product })
+  let pendingBroadcast = null
+  try {
+    if (pDiscounted > 0) {
+      pendingBroadcast = await notifyOfferProduct(String(req.tenantId), pName, pDesc, pPrice, pDiscounted, tenantCurrency)
+    } else {
+      pendingBroadcast = await notifyNewProduct(String(req.tenantId), pName, pDesc, pPrice, tenantCurrency)
+    }
+  } catch { /* ignore broadcast errors — product was saved successfully */ }
+
+  res.status(201).json({ success: true, data: product, pendingBroadcast })
 }
 
 export async function updateProduct(req: Request, res: Response): Promise<void> {
@@ -170,23 +173,26 @@ export async function updateProduct(req: Request, res: Response): Promise<void> 
   const row = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id) as Record<string, unknown>
   const product = parseProduct(row)!
 
-  // AUTO-BROADCAST on update — fires whenever a discount/offer is added or changed
+  // AUTO-BROADCAST on update — schedules pending broadcast when offer is added/changed
   const tenantCurrRow = db.prepare('SELECT currency FROM tenants WHERE id = ?').get(req.tenantId) as { currency?: string }
   const updatedCurrency = tenantCurrRow?.currency || 'USD'
   const newDiscountedPrice = req.body.discountedPrice !== undefined ? Number(req.body.discountedPrice) : 0
+
+  let pendingBroadcast = null
   if (newDiscountedPrice > 0 && newDiscountedPrice !== oldDiscounted) {
-    // Discount added or changed — send offer notification
-    notifyOfferProduct(
-      String(req.tenantId),
-      String(row.name || ''),
-      String(row.description || ''),
-      Number(row.price || 0),
-      newDiscountedPrice,
-      updatedCurrency
-    ).catch(() => {})
+    try {
+      pendingBroadcast = await notifyOfferProduct(
+        String(req.tenantId),
+        String(row.name || ''),
+        String(row.description || ''),
+        Number(row.price || 0),
+        newDiscountedPrice,
+        updatedCurrency
+      )
+    } catch { /* ignore */ }
   }
 
-  res.json({ success: true, data: product })
+  res.json({ success: true, data: product, pendingBroadcast })
 }
 
 export async function deleteProduct(req: Request, res: Response): Promise<void> {

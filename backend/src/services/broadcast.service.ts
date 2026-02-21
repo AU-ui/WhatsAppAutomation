@@ -250,6 +250,63 @@ export async function sendAppointmentReminder(tenantId: string, orderId: string)
   })
 }
 
+// ─── Pending Broadcast Result ─────────────────────────────────────
+
+export interface PendingBroadcastResult {
+  broadcastId: string
+  message: string       // preview (first 300 chars)
+  recipientCount: number
+  scheduledAt: string
+}
+
+// ─── Helper: Schedule a pending broadcast with auto-fire after delayMs ────
+
+async function schedulePendingBroadcast(params: {
+  tenantId: string
+  name: string
+  message: string
+  triggerEvent: string
+  delayMs?: number
+}): Promise<PendingBroadcastResult | null> {
+  const db = getDb()
+  const { tenantId, name, message, triggerEvent, delayMs = 20000 } = params
+
+  const recipientCount = (db.prepare(
+    'SELECT COUNT(*) as cnt FROM customers WHERE tenantId = ? AND isBlocked = 0 AND optIn = 1'
+  ).get(tenantId) as { cnt: number }).cnt
+
+  if (recipientCount === 0) return null
+
+  const broadcastId = generateId()
+  const now = nowIso()
+  const scheduledAt = new Date(Date.now() + delayMs).toISOString()
+
+  db.prepare(`
+    INSERT INTO broadcasts (id, tenantId, name, type, status, messageType, textContent, audience, recipients, stats, sendRate, scheduledAt, isAutoTriggered, triggerEvent, createdAt, updatedAt)
+    VALUES (?, ?, ?, 'auto_product', 'scheduled', 'text', ?, ?, '[]', ?, 1, ?, 1, ?, ?, ?)
+  `).run(
+    broadcastId, tenantId, name, message,
+    toJson({ type: 'all', optInOnly: true }),
+    toJson({ totalRecipients: 0, sent: 0, failed: 0, delivered: 0, read: 0 }),
+    scheduledAt, triggerEvent, now, now
+  )
+
+  // Auto-fire via setTimeout (exact timing, independent of cron 1-min intervals)
+  setTimeout(() => {
+    const db2 = getDb()
+    const row = db2.prepare('SELECT status FROM broadcasts WHERE id = ?').get(broadcastId) as { status: string } | undefined
+    if (row?.status === 'scheduled') {
+      executeBroadcast(broadcastId).catch(err =>
+        logger.error({ err, broadcastId }, 'Auto-fire broadcast failed')
+      )
+    }
+  }, delayMs)
+
+  logger.info({ broadcastId, tenantId, recipientCount, delayMs }, 'Pending broadcast scheduled')
+
+  return { broadcastId, message: message.substring(0, 300), recipientCount, scheduledAt }
+}
+
 // ─── New Product Notification ─────────────────────────────────────
 
 export async function notifyNewProduct(
@@ -258,26 +315,23 @@ export async function notifyNewProduct(
   productDescription: string,
   productPrice: number,
   currency: string
-): Promise<void> {
+): Promise<PendingBroadcastResult | null> {
   const db = getDb()
   const tenantRow = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId) as Record<string, unknown> | undefined
-  if (!tenantRow) return
-
-  const whatsapp = fromJson<{ phoneNumberId: string; accessToken: string }>(tenantRow.whatsapp as string, { phoneNumberId: '', accessToken: '' })
-  const subscribers = db.prepare('SELECT phone, name FROM customers WHERE tenantId = ? AND isBlocked = 0 AND optIn = 1').all(tenantId) as { phone: string; name?: string }[]
+  if (!tenantRow) return null
 
   const msg =
     `🆕 *New Arrival at ${tenantRow.businessName}!*\n\n` +
-    `*${productName}*\n${productDescription}\n\n` +
+    `*${productName}*\n${productDescription ? productDescription + '\n\n' : '\n'}` +
     `💰 Price: ${currency} ${productPrice.toFixed(2)}\n\n` +
     `Type *CATALOG* to shop now! 🛍️\n\n_Reply STOP to unsubscribe_`
 
-  for (const sub of subscribers) {
-    await WhatsApp.sendText({ phoneNumberId: whatsapp.phoneNumberId, accessToken: whatsapp.accessToken, to: sub.phone, text: msg })
-    await sleep(SEND_DELAY_MS)
-  }
-
-  logger.info({ tenantId, product: productName, subscribers: subscribers.length }, 'New product notification sent')
+  return schedulePendingBroadcast({
+    tenantId,
+    name: `New Product: ${productName}`,
+    message: msg,
+    triggerEvent: 'product_new',
+  })
 }
 
 // ─── Offer / Discount Notification (Auto-triggered, niche-specific) ────────
@@ -289,30 +343,26 @@ export async function notifyOfferProduct(
   originalPrice: number,
   discountedPrice: number,
   currency: string
-): Promise<void> {
+): Promise<PendingBroadcastResult | null> {
   const db = getDb()
   const tenantRow = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId) as Record<string, unknown> | undefined
-  if (!tenantRow) return
-
-  const whatsapp = fromJson<{ phoneNumberId: string; accessToken: string }>(tenantRow.whatsapp as string, { phoneNumberId: '', accessToken: '' })
-  if (!whatsapp.phoneNumberId || !whatsapp.accessToken) return
-
-  const subscribers = db.prepare('SELECT phone, name FROM customers WHERE tenantId = ? AND isBlocked = 0 AND optIn = 1').all(tenantId) as { phone: string; name?: string }[]
-  if (subscribers.length === 0) return
+  if (!tenantRow) return null
 
   const businessType = (tenantRow.businessType as string) || 'general'
   const businessName = tenantRow.businessName as string
   const savings = Math.round(((originalPrice - discountedPrice) / originalPrice) * 100)
 
-  const template = buildNicheOfferMessage(businessType, businessName, productName, productDescription, originalPrice, discountedPrice, currency, savings)
+  const message = buildNicheOfferMessage(
+    businessType, businessName, productName, productDescription,
+    originalPrice, discountedPrice, currency, savings
+  ).replace(/\{\{name\}\}/gi, 'Valued Customer')  // generic preview; actual sends personalise
 
-  for (const sub of subscribers) {
-    const msg = template.replace(/\{\{name\}\}/gi, sub.name || 'Valued Customer')
-    await WhatsApp.sendText({ phoneNumberId: whatsapp.phoneNumberId, accessToken: whatsapp.accessToken, to: sub.phone, text: msg })
-    await sleep(SEND_DELAY_MS)
-  }
-
-  logger.info({ tenantId, product: productName, subscribers: subscribers.length, businessType }, 'Offer notification auto-sent')
+  return schedulePendingBroadcast({
+    tenantId,
+    name: `Offer: ${productName} (${savings}% off)`,
+    message,
+    triggerEvent: 'product_offer',
+  })
 }
 
 function buildNicheOfferMessage(
