@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WhatsApp Bot Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="/config.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f0fdf4; }
+    .tab-btn.active { background: #16a34a; color: #fff; }
+    .tab-btn { transition: all .15s; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- ═══════════ LOGIN ═══════════ -->
+<div id="login" class="hidden min-h-screen flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8">
+
+    <div class="text-center mb-8">
+      <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <span class="text-3xl">💬</span>
+      </div>
+      <h1 class="text-xl font-bold text-gray-800">WhatsApp Bot Admin</h1>
+      <p class="text-gray-400 text-sm mt-1">Sign in to manage your bot</p>
+    </div>
+
+    <!-- Step 1: Email -->
+    <div id="step-email" class="space-y-4">
+      <div>
+        <label class="text-sm font-medium text-gray-700 block mb-2">Email address</label>
+        <input id="inp-email" type="email" placeholder="you@example.com"
+          class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100" />
+      </div>
+      <button onclick="sendCode()"
+        class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
+        Send Login Code →
+      </button>
+      <p id="email-err" class="hidden text-red-500 text-xs text-center pt-1"></p>
+    </div>
+
+    <!-- Step 2: OTP -->
+    <div id="step-otp" class="hidden space-y-4">
+      <div class="bg-green-50 rounded-xl p-3 text-center text-sm text-green-700">
+        ✅ Check your email for the 6-digit code
+      </div>
+      <div>
+        <label class="text-sm font-medium text-gray-700 block mb-2">Enter code</label>
+        <input id="inp-otp" type="text" maxlength="6" placeholder="000000"
+          class="w-full px-4 py-3 border border-gray-200 rounded-xl text-center text-2xl font-bold tracking-widest outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100" />
+      </div>
+      <button onclick="verifyCode()"
+        class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
+        Login →
+      </button>
+      <button onclick="resetLogin()" class="w-full text-gray-400 text-xs hover:text-gray-600 py-1">
+        ← Try different email
+      </button>
+      <p id="otp-err" class="hidden text-red-500 text-xs text-center"></p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════ APP ═══════════ -->
+<div id="app" class="hidden">
+
+  <!-- Top bar -->
+  <div class="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm">💬</div>
+      <div>
+        <p class="font-semibold text-gray-800 text-sm leading-tight" id="biz-name">WhatsApp Bot</p>
+        <div class="flex items-center gap-1.5">
+          <span id="status-dot" class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>
+          <span id="status-label" class="text-xs text-gray-400">Connecting…</span>
+        </div>
+      </div>
+    </div>
+    <button onclick="doLogout()" class="text-xs text-gray-400 hover:text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+      Logout
+    </button>
+  </div>
+
+  <!-- Tab bar -->
+  <div class="bg-white border-b border-gray-100 px-4 flex gap-1 sticky top-14 z-10">
+    <button onclick="showTab('home')"      class="tab-btn px-4 py-3 text-sm font-medium text-gray-500 rounded-t-lg">🏠 Home</button>
+    <button onclick="showTab('customers')" class="tab-btn px-4 py-3 text-sm font-medium text-gray-500 rounded-t-lg">👥 Customers</button>
+    <button onclick="showTab('broadcast')" class="tab-btn px-4 py-3 text-sm font-medium text-gray-500 rounded-t-lg">📢 Send Message</button>
+    <button onclick="showTab('settings')"  class="tab-btn px-4 py-3 text-sm font-medium text-gray-500 rounded-t-lg">⚙️ Settings</button>
+  </div>
+
+  <!-- Content -->
+  <div class="max-w-3xl mx-auto p-4 space-y-4">
+
+    <!-- ── HOME ── -->
+    <div id="tab-home" class="tab space-y-4">
+
+      <!-- WhatsApp connection card -->
+      <div id="wa-card" class="bg-white rounded-2xl shadow-sm p-6 text-center">
+        <!-- connecting -->
+        <div id="wa-connecting">
+          <div class="text-4xl mb-3">⏳</div>
+          <p class="font-semibold text-gray-700">Connecting to WhatsApp…</p>
+          <p class="text-sm text-gray-400 mt-1">Please wait</p>
+        </div>
+        <!-- qr -->
+        <div id="wa-qr" class="hidden">
+          <p class="font-semibold text-gray-800 text-lg mb-1">Scan to connect WhatsApp</p>
+          <p class="text-sm text-gray-400 mb-4">Open WhatsApp → Settings → Linked Devices → Link a Device</p>
+          <div id="qr-box" class="flex justify-center mb-4"></div>
+          <p class="text-xs text-gray-400">QR code expires in 60 seconds</p>
+        </div>
+        <!-- connected -->
+        <div id="wa-connected" class="hidden">
+          <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <span class="text-3xl">✅</span>
+          </div>
+          <p class="font-semibold text-green-600 text-lg">WhatsApp Connected!</p>
+          <p class="text-sm text-gray-400 mt-1">Your bot is live and replying to customers automatically</p>
+          <p class="text-xs text-gray-300 mt-2" id="connected-since"></p>
+        </div>
+        <!-- disconnected -->
+        <div id="wa-disconnected" class="hidden">
+          <div class="text-4xl mb-3">❌</div>
+          <p class="font-semibold text-red-500">Disconnected</p>
+          <p class="text-sm text-gray-400 mt-1">Auto-reconnecting…</p>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="bg-white rounded-2xl shadow-sm p-4 text-center">
+          <p class="text-2xl font-bold text-gray-800" id="s-total">—</p>
+          <p class="text-xs text-gray-400 mt-0.5">Total Customers</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4 text-center">
+          <p class="text-2xl font-bold text-green-600" id="s-today">—</p>
+          <p class="text-xs text-gray-400 mt-0.5">Active Today</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4 text-center">
+          <p class="text-2xl font-bold text-gray-800" id="s-orders">—</p>
+          <p class="text-xs text-gray-400 mt-0.5">Orders</p>
+        </div>
+      </div>
+
+      <!-- How it works -->
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <p class="font-semibold text-gray-700 mb-3 text-sm">How your bot works automatically</p>
+        <div class="space-y-3">
+          <div class="flex items-start gap-3">
+            <span class="w-7 h-7 bg-green-100 rounded-full flex items-center justify-center text-sm flex-shrink-0">1</span>
+            <div><p class="text-sm font-medium text-gray-700">Customer messages your WhatsApp</p><p class="text-xs text-gray-400">From any phone in the world</p></div>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="w-7 h-7 bg-green-100 rounded-full flex items-center justify-center text-sm flex-shrink-0">2</span>
+            <div><p class="text-sm font-medium text-gray-700">Bot asks their name & registers them</p><p class="text-xs text-gray-400">Auto-saves to your customer list</p></div>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="w-7 h-7 bg-green-100 rounded-full flex items-center justify-center text-sm flex-shrink-0">3</span>
+            <div><p class="text-sm font-medium text-gray-700">Bot replies, shows products, takes orders</p><p class="text-xs text-gray-400">24/7, no human needed</p></div>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center text-sm flex-shrink-0">4</span>
+            <div><p class="text-sm font-medium text-gray-700">You send offers from this dashboard</p><p class="text-xs text-gray-400">Bulk messages to all or specific customers</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Test section -->
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <p class="font-semibold text-gray-700 mb-1 text-sm">🧪 Test your bot</p>
+        <p class="text-xs text-gray-400 mb-3">Send a test message from the bot to any phone</p>
+        <div class="flex gap-2">
+          <input id="test-phone" type="tel" placeholder="Phone number with country code"
+            class="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-green-400" />
+          <button onclick="sendTest()"
+            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap">
+            Send Test
+          </button>
+        </div>
+        <p id="test-result" class="hidden text-xs mt-2"></p>
+      </div>
+    </div>
+
+    <!-- ── CUSTOMERS ── -->
+    <div id="tab-customers" class="tab hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <p class="font-semibold text-gray-700">👥 Customer List</p>
+        <input oninput="filterCx(this.value)" type="search" placeholder="Search…"
+          class="px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-green-400 w-40" />
+      </div>
+      <p class="text-xs text-gray-400">Customers are automatically added when they message your bot. You don't need to add them manually.</p>
+      <div id="cx-list" class="space-y-2"></div>
+    </div>
+
+    <!-- ── BROADCAST ── -->
+    <div id="tab-broadcast" class="tab hidden space-y-4">
+      <p class="font-semibold text-gray-700">📢 Send a Message to Customers</p>
+      <p class="text-xs text-gray-400">Your message will be sent automatically to everyone on the selected list. No one needs to do anything manually.</p>
+
+      <div class="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-2">Who should receive this?</label>
+          <div class="grid grid-cols-2 gap-2" id="audience-btns">
+            <button onclick="setAudience('All',this)"     class="aud-btn active border-2 border-green-500 bg-green-50 text-green-700 rounded-xl py-2.5 text-sm font-medium">🌐 Everyone</button>
+            <button onclick="setAudience('New',this)"     class="aud-btn border-2 border-gray-100 bg-gray-50 text-gray-600 rounded-xl py-2.5 text-sm font-medium">🆕 New Customers</button>
+            <button onclick="setAudience('Frequent',this)"class="aud-btn border-2 border-gray-100 bg-gray-50 text-gray-600 rounded-xl py-2.5 text-sm font-medium">🔄 Frequent Buyers</button>
+            <button onclick="setAudience('VIP',this)"     class="aud-btn border-2 border-gray-100 bg-gray-50 text-gray-600 rounded-xl py-2.5 text-sm font-medium">⭐ VIP Customers</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-2">Quick templates</label>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="useTpl('weekend_offer')" class="text-xs px-3 py-1.5 bg-orange-50 text-orange-600 rounded-full border border-orange-100 hover:bg-orange-100">🎉 Weekend Offer</button>
+            <button onclick="useTpl('flash_sale')"    class="text-xs px-3 py-1.5 bg-red-50 text-red-600 rounded-full border border-red-100 hover:bg-red-100">⚡ Flash Sale</button>
+            <button onclick="useTpl('diwali')"        class="text-xs px-3 py-1.5 bg-yellow-50 text-yellow-600 rounded-full border border-yellow-100 hover:bg-yellow-100">🪔 Diwali</button>
+            <button onclick="useTpl('eid')"           class="text-xs px-3 py-1.5 bg-green-50 text-green-600 rounded-full border border-green-100 hover:bg-green-100">🌙 Eid</button>
+            <button onclick="useTpl('christmas')"     class="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-full border border-blue-100 hover:bg-blue-100">🎄 Christmas</button>
+            <button onclick="useTpl('new_year')"      class="text-xs px-3 py-1.5 bg-purple-50 text-purple-600 rounded-full border border-purple-100 hover:bg-purple-100">🎊 New Year</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-2">Your message</label>
+          <textarea id="bc-msg" rows="5" placeholder="Type your message here… use {name} to personalize"
+            class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-green-400 resize-none"></textarea>
+        </div>
+
+        <button onclick="sendBroadcast()"
+          class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
+          📤 Send to Customers Now
+        </button>
+        <p id="bc-result" class="hidden text-sm text-center"></p>
+      </div>
+
+      <!-- History -->
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <p class="font-semibold text-gray-700 text-sm mb-3">Sent Messages</p>
+        <div id="bc-history" class="space-y-2 text-sm"></div>
+      </div>
+    </div>
+
+    <!-- ── SETTINGS ── -->
+    <div id="tab-settings" class="tab hidden space-y-4">
+      <p class="font-semibold text-gray-700">⚙️ Business Settings</p>
+      <p class="text-xs text-gray-400">The bot uses this information when replying to customers.</p>
+
+      <div class="bg-white rounded-2xl shadow-sm p-5 space-y-3">
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">Business Name</label>
+          <input id="s-name" type="text" class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-green-400" />
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">What do you sell / offer?</label>
+          <textarea id="s-desc" rows="2" class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-green-400 resize-none"></textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Business Hours</label>
+            <input id="s-hours" type="text" placeholder="Mon-Sat 9AM-6PM" class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-green-400" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Phone</label>
+            <input id="s-phone" type="text" class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-green-400" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Email</label>
+            <input id="s-email" type="email" class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-green-400" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Website</label>
+            <input id="s-web" type="url" class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-green-400" />
+          </div>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">Address / Location</label>
+          <input id="s-loc" type="text" class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-green-400" />
+        </div>
+        <button onclick="saveSettings()"
+          class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
+          💾 Save Settings
+        </button>
+        <p id="s-saved" class="hidden text-green-600 text-xs text-center">✓ Saved!</p>
+      </div>
+
+      <!-- Bot commands guide -->
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <p class="font-semibold text-gray-700 text-sm mb-3">Commands your customers can use</p>
+        <div class="space-y-2">
+          <div class="flex justify-between text-sm"><code class="text-green-600 font-mono">Hi / Hello</code><span class="text-gray-500">Start chat & register</span></div>
+          <div class="flex justify-between text-sm"><code class="text-green-600 font-mono">MENU</code><span class="text-gray-500">Show main menu</span></div>
+          <div class="flex justify-between text-sm"><code class="text-green-600 font-mono">CATALOG</code><span class="text-gray-500">Browse products</span></div>
+          <div class="flex justify-between text-sm"><code class="text-green-600 font-mono">CART</code><span class="text-gray-500">View shopping cart</span></div>
+          <div class="flex justify-between text-sm"><code class="text-green-600 font-mono">ORDERS</code><span class="text-gray-500">My order history</span></div>
+          <div class="flex justify-between text-sm"><code class="text-green-600 font-mono">AGENT</code><span class="text-gray-500">Talk to a human</span></div>
+          <div class="flex justify-between text-sm"><code class="text-green-600 font-mono">STOP</code><span class="text-gray-500">Unsubscribe from offers</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = (window.WA_API_URL || 'http://localhost:3000').replace(/\/$/, '')
+let TOKEN = localStorage.getItem('wa_token') || ''
+let AUDIENCE = 'All'
+let allCx = []
+let sse = null
+
+// ── Boot ──────────────────────────────────────────────
+window.onload = async () => {
+  const mode = await fetch(`${API}/api/auth/mode`).then(r => r.json()).catch(() => ({ emailLogin: false }))
+  if (!mode.emailLogin) {
+    TOKEN = window.WA_API_KEY || 'no-auth'
+    startApp()
+    return
+  }
+  if (TOKEN) { startApp(); return }
+  show('login')
+}
+
+function startApp() {
+  hide('login'); show('app')
+  connectSSE()
+  showTab('home')
+  loadStats()
+}
+
+// ── Email OTP login ───────────────────────────────────
+let loginEmail = ''
+
+async function sendCode() {
+  const email = $('inp-email').value.trim()
+  if (!email) return
+  try {
+    const r = await fetch(`${API}/api/auth/request-otp`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email })
+    })
+    const d = await r.json()
+    if (!r.ok) throw new Error(d.message)
+    if (d.autoLogin) {
+      TOKEN = d.token; localStorage.setItem('wa_token', TOKEN); startApp(); return
+    }
+    loginEmail = email
+    hide('step-email'); show('step-otp')
+    setTimeout(() => $('inp-otp').focus(), 100)
+  } catch(e) { showErr('email-err', e.message) }
+}
+
+async function verifyCode() {
+  const otp = $('inp-otp').value.trim()
+  if (otp.length !== 6) return
+  try {
+    const r = await fetch(`${API}/api/auth/verify-otp`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email: loginEmail, otp })
+    })
+    const d = await r.json()
+    if (!r.ok) throw new Error(d.message)
+    TOKEN = d.token; localStorage.setItem('wa_token', TOKEN); startApp()
+  } catch(e) { showErr('otp-err', e.message) }
+}
+
+function resetLogin() {
+  hide('step-otp'); show('step-email'); $('inp-otp').value = ''
+}
+
+function doLogout() {
+  localStorage.removeItem('wa_token'); TOKEN = ''
+  if (sse) { sse.close(); sse = null }
+  hide('app'); show('login')
+}
+
+// ── API helper ────────────────────────────────────────
+async function req(path, opts = {}) {
+  const r = await fetch(API + path, {
+    ...opts,
+    headers: { 'X-Session-Token': TOKEN, 'X-API-Key': TOKEN, 'Content-Type': 'application/json', ...(opts.headers||{}) }
+  })
+  if (r.status === 401) { doLogout(); return null }
+  if (!r.ok) throw new Error('HTTP ' + r.status)
+  return r.json()
+}
+
+// ── SSE (live WhatsApp status) ────────────────────────
+function connectSSE() {
+  sse = new EventSource(`${API}/api/status/stream`)
+  sse.addEventListener('qr',          e => renderQR(JSON.parse(e.data).qr))
+  sse.addEventListener('connected',   e => setWAStatus('connected', JSON.parse(e.data).connectedAt))
+  sse.addEventListener('disconnected',  () => setWAStatus('disconnected'))
+  sse.addEventListener('status',      e => setWAStatus(JSON.parse(e.data).status))
+}
+
+function setWAStatus(status, connectedAt) {
+  const dot   = { connecting:'bg-yellow-400', qr_ready:'bg-orange-400', connected:'bg-green-500', disconnected:'bg-red-400' }
+  const label = { connecting:'Connecting…', qr_ready:'Scan QR code', connected:'Connected ✓', disconnected:'Disconnected' }
+  $('status-dot').className   = `w-1.5 h-1.5 rounded-full ${dot[status]||dot.connecting}`
+  $('status-label').textContent = label[status]||'Connecting…'
+
+  ;['connecting','qr','connected','disconnected'].forEach(s => hide('wa-'+s))
+  const panelMap = { connecting:'wa-connecting', qr_ready:'wa-qr', connected:'wa-connected', disconnected:'wa-disconnected' }
+  if (panelMap[status]) show(panelMap[status])
+
+  if (status === 'connected' && connectedAt) {
+    $('connected-since').textContent = 'Connected since ' + new Date(connectedAt).toLocaleTimeString()
+  }
+}
+
+let qrObj = null
+function renderQR(str) {
+  setWAStatus('qr_ready')
+  $('qr-box').innerHTML = ''
+  qrObj = new QRCode($('qr-box'), { text: str, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M })
+}
+
+// ── Stats ─────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const d = await req('/api/summary')
+    if (!d) return
+    $('s-total').textContent  = d.data.customers.total
+    $('s-today').textContent  = d.data.customers.active_today
+    $('s-orders').textContent = d.data.revenue.total_orders || 0
+    const health = await fetch(`${API}/health`).then(r => r.json()).catch(()=>({business:'Bot'}))
+    $('biz-name').textContent = health.business
+    document.title = health.business + ' — Dashboard'
+  } catch {}
+}
+
+// ── Customers ─────────────────────────────────────────
+async function loadCustomers() {
+  try {
+    const d = await req('/api/customers')
+    if (!d) return
+    allCx = d.data
+    renderCx(allCx)
+  } catch {}
+}
+
+function renderCx(list) {
+  $('cx-list').innerHTML = list.length ? list.map(c => `
+    <div class="bg-white rounded-xl p-4 flex items-center justify-between shadow-sm">
+      <div>
+        <p class="font-medium text-gray-800 text-sm">${esc(c.name||'Unknown')}</p>
+        <p class="text-xs text-gray-400 mt-0.5">${c.phone_number||c.phone||''}</p>
+      </div>
+      <div class="text-right">
+        <span class="text-xs px-2 py-1 rounded-full ${c.is_blocked?'bg-red-50 text-red-500':'bg-green-50 text-green-600'}">
+          ${c.is_blocked?'Blocked':'Active'}
+        </span>
+        <p class="text-xs text-gray-300 mt-1">${c.first_seen ? new Date(c.first_seen).toLocaleDateString() : ''}</p>
+      </div>
+    </div>
+  `).join('') : '<p class="text-gray-400 text-sm text-center py-8">No customers yet. Share your WhatsApp number and customers will appear here when they message.</p>'
+}
+
+function filterCx(q) {
+  const f = q.toLowerCase()
+  renderCx(allCx.filter(c => (c.name||'').toLowerCase().includes(f) || (c.phone_number||'').includes(f)))
+}
+
+// ── Broadcast ─────────────────────────────────────────
+function setAudience(val, btn) {
+  AUDIENCE = val
+  document.querySelectorAll('.aud-btn').forEach(b => {
+    b.className = 'aud-btn border-2 border-gray-100 bg-gray-50 text-gray-600 rounded-xl py-2.5 text-sm font-medium'
+  })
+  btn.className = 'aud-btn border-2 border-green-500 bg-green-50 text-green-700 rounded-xl py-2.5 text-sm font-medium'
+}
+
+const TEMPLATES = {
+  weekend_offer: '🎉 Hey {name}! This weekend only — get *20% OFF* on all orders!\n\nType *CATALOG* to shop now! Offer ends Sunday. ⏰',
+  flash_sale:    '⚡ FLASH SALE! {name}, grab up to *40% OFF* — today only!\n\nType *CATALOG* to see all deals before they\'re gone! 🔥',
+  diwali:        '🪔 Happy Diwali, {name}! Wishing you joy and prosperity this festive season. ✨\n\nCelebrate with *20% OFF* on all orders. Type *CATALOG* to shop!',
+  eid:           '🌙 Eid Mubarak, {name}! May this special day bring peace and happiness. 🌟\n\nEnjoy *15% OFF* as our Eid gift to you. Type *CATALOG* to browse!',
+  christmas:     '🎄 Merry Christmas, {name}! Wishing you a season full of warmth and cheer. 🎁\n\nUnwrap *25% OFF* on all items. Type *CATALOG* to shop!',
+  new_year:      '🎊 Happy New Year, {name}! Wishing you an amazing year ahead.\n\nStart it right with *10% OFF* your next order. Type *CATALOG* to browse!',
+}
+
+function useTpl(key) {
+  if (TEMPLATES[key]) $('bc-msg').value = TEMPLATES[key]
+}
+
+async function sendBroadcast() {
+  const msg = $('bc-msg').value.trim()
+  if (!msg) { alert('Write your message first'); return }
+  if (!confirm(`Send this message to: ${AUDIENCE} customers?`)) return
+  try {
+    const bc = await req('/api/broadcasts', { method:'POST', body: JSON.stringify({ name: 'Campaign', message: msg, target_tags: [AUDIENCE] }) })
+    if (!bc) return
+    await req('/api/broadcasts/' + bc.data.id + '/send', { method:'POST' })
+    const r = $('bc-result')
+    r.className = 'text-sm text-center text-green-600'
+    r.textContent = '✅ Message sent!'
+    r.classList.remove('hidden')
+    $('bc-msg').value = ''
+    loadBroadcasts()
+    setTimeout(() => r.classList.add('hidden'), 3000)
+  } catch { alert('Failed to send') }
+}
+
+async function loadBroadcasts() {
+  try {
+    const d = await req('/api/broadcasts')
+    if (!d) return
+    $('bc-history').innerHTML = d.data.length
+      ? d.data.slice(0,10).map(b => `
+        <div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-gray-700 truncate">${esc(b.message)}</p>
+            <p class="text-xs text-gray-400">${new Date(b.created_at).toLocaleString()}</p>
+          </div>
+          <span class="ml-3 text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${b.status==='sent'?'bg-green-100 text-green-600':'bg-gray-100 text-gray-400'}">
+            ${b.status==='sent'?`✓ ${b.sent_count} sent`:b.status}
+          </span>
+        </div>`).join('')
+      : '<p class="text-gray-400 text-sm">No messages sent yet</p>'
+  } catch {}
+}
+
+// ── Settings ──────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const d = await req('/api/config')
+    if (!d) return
+    $('s-name').value  = d.data.business_name  || ''
+    $('s-desc').value  = d.data.business_desc  || ''
+    $('s-hours').value = d.data.business_hours || ''
+    $('s-phone').value = d.data.business_phone || ''
+    $('s-email').value = d.data.business_email || ''
+    $('s-web').value   = d.data.business_website || ''
+    $('s-loc').value   = d.data.business_location || ''
+  } catch {}
+}
+
+async function saveSettings() {
+  try {
+    await req('/api/config', { method:'PATCH', body: JSON.stringify({
+      business_name: $('s-name').value, business_desc: $('s-desc').value,
+      business_hours: $('s-hours').value, business_phone: $('s-phone').value,
+      business_email: $('s-email').value, business_website: $('s-web').value,
+      business_location: $('s-loc').value,
+    })})
+    const el = $('s-saved'); el.classList.remove('hidden')
+    setTimeout(() => el.classList.add('hidden'), 2500)
+  } catch { alert('Failed to save') }
+}
+
+// ── Test ──────────────────────────────────────────────
+async function sendTest() {
+  const phone = $('test-phone').value.trim()
+  if (!phone) return
+  try {
+    const r = await req('/api/test/send', { method:'POST', body: JSON.stringify({ phone, message: '👋 Hello! Your WhatsApp bot is working correctly. ✅' }) })
+    const el = $('test-result')
+    el.className = r ? 'text-xs mt-2 text-green-600' : 'text-xs mt-2 text-red-500'
+    el.textContent = r ? '✅ Message sent! Check your WhatsApp.' : '❌ Failed — is WhatsApp connected?'
+    el.classList.remove('hidden')
+  } catch {
+    const el = $('test-result'); el.className = 'text-xs mt-2 text-red-500'
+    el.textContent = '❌ Failed — is WhatsApp connected?'; el.classList.remove('hidden')
+  }
+}
+
+// ── Tabs ──────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.add('hidden'))
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+  show('tab-' + name)
+  const btn = [...document.querySelectorAll('.tab-btn')].find(b => b.getAttribute('onclick') === `showTab('${name}')`)
+  if (btn) btn.classList.add('active')
+  if (name === 'customers') loadCustomers()
+  if (name === 'broadcast') loadBroadcasts()
+  if (name === 'settings')  loadSettings()
+  if (name === 'home')      loadStats()
+}
+
+// ── Helpers ───────────────────────────────────────────
+const $ = id => document.getElementById(id)
+const show = id => $(id)?.classList.remove('hidden')
+const hide = id => $(id)?.classList.add('hidden')
+const esc  = s  => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+function showErr(id, msg) {
+  const el = $(id); el.textContent = msg; el.classList.remove('hidden')
+  setTimeout(() => el.classList.add('hidden'), 4000)
+}
+
+// Enter key on login
+document.addEventListener('DOMContentLoaded', () => {
+  $('inp-email')?.addEventListener('keypress', e => { if (e.key==='Enter') sendCode() })
+  $('inp-otp')?.addEventListener('keypress',   e => { if (e.key==='Enter') verifyCode() })
+})
+</script>
+</body>
+</html>
