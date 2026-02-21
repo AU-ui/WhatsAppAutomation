@@ -124,7 +124,8 @@ export async function createProduct(req: Request, res: Response): Promise<void> 
   const row = db.prepare('SELECT * FROM products WHERE id = ?').get(id) as Record<string, unknown>
   const product = parseProduct(row)!
 
-  // Auto-broadcast: offer notification if discountedPrice is set, else new-product notification
+  // AUTO-BROADCAST — always fires, zero human intervention needed
+  // Offer message if discounted price set, otherwise new-arrival message
   const tenantCurrencyRow = db.prepare('SELECT currency FROM tenants WHERE id = ?').get(req.tenantId) as { currency?: string }
   const tenantCurrency = tenantCurrencyRow?.currency || 'USD'
   const pName = String(name || '')
@@ -133,7 +134,7 @@ export async function createProduct(req: Request, res: Response): Promise<void> 
   const pDiscounted = discountedPrice ? Number(discountedPrice) : 0
   if (pDiscounted > 0) {
     notifyOfferProduct(String(req.tenantId), pName, pDesc, pPrice, pDiscounted, tenantCurrency).catch(() => {})
-  } else if (notifyOnAdd) {
+  } else {
     notifyNewProduct(String(req.tenantId), pName, pDesc, pPrice, tenantCurrency).catch(() => {})
   }
 
@@ -143,9 +144,9 @@ export async function createProduct(req: Request, res: Response): Promise<void> 
 export async function updateProduct(req: Request, res: Response): Promise<void> {
   const db = getDb()
 
-  // Capture old discountedPrice before update to detect new offer
-  const oldRow = db.prepare('SELECT discountedPrice, price, name, description FROM products WHERE id = ? AND tenantId = ?').get(req.params.id, req.tenantId) as Record<string, unknown> | undefined
-  const hadOffer = oldRow && oldRow.discountedPrice && Number(oldRow.discountedPrice) > 0
+  // Capture old values before update to detect what changed
+  const oldRow = db.prepare('SELECT discountedPrice, price FROM products WHERE id = ? AND tenantId = ?').get(req.params.id, req.tenantId) as Record<string, unknown> | undefined
+  const oldDiscounted = oldRow ? Number(oldRow.discountedPrice || 0) : 0
 
   const allowed = ['categoryId', 'name', 'description', 'price', 'discountedPrice', 'type', 'currency', 'stock', 'isFeatured', 'notifyOnAdd', 'imageUrl', 'pdfUrl', 'sortOrder']
   const jsonFields = ['tags', 'attributes']
@@ -169,17 +170,19 @@ export async function updateProduct(req: Request, res: Response): Promise<void> 
   const row = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id) as Record<string, unknown>
   const product = parseProduct(row)!
 
-  // Auto-broadcast offer if discountedPrice is being set for the first time
-  const newDiscountedPrice = req.body.discountedPrice
-  if (newDiscountedPrice && Number(newDiscountedPrice) > 0 && !hadOffer) {
-    const tenantCurrRow = db.prepare('SELECT currency FROM tenants WHERE id = ?').get(req.tenantId) as { currency?: string }
+  // AUTO-BROADCAST on update — fires whenever a discount/offer is added or changed
+  const tenantCurrRow = db.prepare('SELECT currency FROM tenants WHERE id = ?').get(req.tenantId) as { currency?: string }
+  const updatedCurrency = tenantCurrRow?.currency || 'USD'
+  const newDiscountedPrice = req.body.discountedPrice !== undefined ? Number(req.body.discountedPrice) : 0
+  if (newDiscountedPrice > 0 && newDiscountedPrice !== oldDiscounted) {
+    // Discount added or changed — send offer notification
     notifyOfferProduct(
       String(req.tenantId),
       String(row.name || ''),
       String(row.description || ''),
       Number(row.price || 0),
-      Number(newDiscountedPrice),
-      tenantCurrRow?.currency || 'USD'
+      newDiscountedPrice,
+      updatedCurrency
     ).catch(() => {})
   }
 

@@ -135,7 +135,6 @@ function ProductModal({
               {[
                 { field: 'isActive', label: 'Active' },
                 { field: 'isFeatured', label: 'Featured' },
-                { field: 'notifyOnAdd', label: 'Notify customers on add' },
               ].map(({ field, label }) => (
                 <label key={field} className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -147,6 +146,9 @@ function ProductModal({
                   <span className="text-xs text-gray-300">{label}</span>
                 </label>
               ))}
+              <p className="text-[10px] text-green-500/80 flex items-center gap-1">
+                ⚡ WhatsApp message auto-sends to all customers on save
+              </p>
             </div>
           </div>
           <div className="flex gap-3 pt-2">
