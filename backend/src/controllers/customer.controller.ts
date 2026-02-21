@@ -172,9 +172,19 @@ export async function sendDirectMessage(req: Request, res: Response): Promise<vo
     db.prepare(`
       INSERT INTO messages (id, tenantId, customerId, role, type, content, status, createdAt)
       VALUES (?, ?, ?, 'assistant', 'text', ?, 'sent', ?)
-    `).run(generateId(), req.tenantId, customer.id, message, nowIso())
+    `).run(generateId(), req.tenantId, customer.id as string, message, nowIso())
     res.json({ success: true, messageId: result.messageId })
   } else {
+    // Parse Meta error for clear logging
+    let errorDetail = result.error || 'unknown'
+    try {
+      const parsed = JSON.parse(result.error || '{}')
+      if (parsed?.error?.message) {
+        errorDetail = `${parsed.error.message} (code: ${parsed.error.code})`
+        if (parsed.error.code === 190) errorDetail += ' — TOKEN EXPIRED: run node update-token.js <NEW_TOKEN>'
+      }
+    } catch {}
+    console.error(`[sendDirectMessage] FAILED to ${customer.phone}: ${errorDetail}`)
     res.status(500).json({ success: false, message: 'Failed to send message', error: result.error })
   }
 }

@@ -22,8 +22,17 @@ function MessageModal({ customer, onClose }: { customer: { _id: string; name?: s
       await customersApi.sendMessage(customer._id, msg)
       toast.success('Message sent!')
       onClose()
-    } catch {
-      toast.error('Failed to send message')
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string; error?: string } } }
+      const detail = e?.response?.data?.error || e?.response?.data?.message || 'Unknown error'
+      // Token expired → give actionable hint
+      if (detail.includes('OAuthException') || detail.includes('190') || detail.includes('Session has expired') || detail.includes('token')) {
+        toast.error('Access token expired — go to Meta Developer → WhatsApp → API Setup → get new token → update in Settings → WhatsApp API', { duration: 6000 })
+      } else if (!e?.response) {
+        toast.error('Backend not reachable — is the server running? (npm run dev in /backend)')
+      } else {
+        toast.error(`Send failed: ${detail}`, { duration: 5000 })
+      }
     } finally {
       setSending(false)
     }
