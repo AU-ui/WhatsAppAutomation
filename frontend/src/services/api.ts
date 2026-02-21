@@ -113,4 +113,11 @@ export const templatesApi = {
   delete: (id: string) => api.delete(`/templates/${id}`),
 }
 
+// ─── Inbox ────────────────────────────────────────────────────────
+export const inboxApi = {
+  getConversations: (search?: string) => api.get('/inbox', { params: search ? { search } : {} }),
+  getMessages: (customerId: string) => api.get(`/inbox/${customerId}`),
+  sendReply: (customerId: string, message: string) => api.post(`/inbox/${customerId}/reply`, { message }),
+}
+
 export default api

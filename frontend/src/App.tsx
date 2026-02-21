@@ -11,6 +11,7 @@ import Analytics from './pages/Analytics'
 import AutoFlows from './pages/AutoFlows'
 import Orders from './pages/Orders'
 import Settings from './pages/Settings'
+import Inbox from './pages/Inbox'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="analytics" element={<Analytics />} />
           <Route path="flows" element={<AutoFlows />} />
           <Route path="orders" element={<Orders />} />
+          <Route path="inbox" element={<Inbox />} />
           <Route path="settings" element={<Settings />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

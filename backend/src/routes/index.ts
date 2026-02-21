@@ -9,6 +9,7 @@ import analyticsRoutes from './analytics.routes'
 import autoFlowRoutes from './autoflow.routes'
 import orderRoutes from './order.routes'
 import templateRoutes from './template.routes'
+import inboxRoutes from './inbox.routes'
 
 const router = Router()
 
@@ -25,5 +26,6 @@ router.use('/analytics', analyticsRoutes)
 router.use('/flows', autoFlowRoutes)
 router.use('/orders', orderRoutes)
 router.use('/templates', templateRoutes)
+router.use('/inbox', inboxRoutes)
 
 export default router

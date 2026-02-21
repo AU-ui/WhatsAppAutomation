@@ -5,6 +5,38 @@ import { config } from '../config'
 import { getDb, generateId, toJson, fromJson, nowIso, parseTenant } from '../database/sqlite'
 import { logger } from '../utils/logger'
 
+// In-memory rate limiter: email → { count, lockedUntil }
+const loginAttempts = new Map<string, { count: number; lockedUntil: number }>()
+const MAX_ATTEMPTS = 5
+const LOCKOUT_MS = 15 * 60 * 1000 // 15 minutes
+
+function checkRateLimit(email: string): { blocked: boolean; remaining: number; retryAfter?: number } {
+  const now = Date.now()
+  const rec = loginAttempts.get(email)
+  if (!rec) return { blocked: false, remaining: MAX_ATTEMPTS }
+  if (rec.lockedUntil > now) {
+    return { blocked: true, remaining: 0, retryAfter: Math.ceil((rec.lockedUntil - now) / 1000) }
+  }
+  if (rec.count >= MAX_ATTEMPTS && rec.lockedUntil <= now) {
+    // Lockout expired — reset
+    loginAttempts.delete(email)
+    return { blocked: false, remaining: MAX_ATTEMPTS }
+  }
+  return { blocked: false, remaining: MAX_ATTEMPTS - rec.count }
+}
+
+function recordFailedAttempt(email: string): void {
+  const now = Date.now()
+  const rec = loginAttempts.get(email) || { count: 0, lockedUntil: 0 }
+  rec.count += 1
+  if (rec.count >= MAX_ATTEMPTS) rec.lockedUntil = now + LOCKOUT_MS
+  loginAttempts.set(email, rec)
+}
+
+function clearAttempts(email: string): void {
+  loginAttempts.delete(email)
+}
+
 function generateToken(tenantId: string, email: string, role: string): string {
   return jwt.sign({ tenantId, email, role }, config.jwt.secret, {
     expiresIn: config.jwt.expiresIn,
@@ -61,15 +93,33 @@ export async function login(req: Request, res: Response): Promise<void> {
   const { email, password } = req.body
   const db = getDb()
 
+  // Rate limit check
+  const limit = checkRateLimit(email?.toLowerCase?.() || '')
+  if (limit.blocked) {
+    res.status(429).json({
+      success: false,
+      message: `Too many failed attempts. Try again in ${limit.retryAfter} seconds.`,
+    })
+    return
+  }
+
   const row = db.prepare('SELECT * FROM tenants WHERE email = ?').get(email) as Record<string, unknown> | undefined
   if (!row) {
+    recordFailedAttempt(email?.toLowerCase?.() || '')
     res.status(401).json({ success: false, message: 'Invalid email or password' })
     return
   }
 
   const passwordMatch = await bcrypt.compare(password, row.password as string)
   if (!passwordMatch) {
-    res.status(401).json({ success: false, message: 'Invalid email or password' })
+    recordFailedAttempt(email?.toLowerCase?.() || '')
+    const after = checkRateLimit(email?.toLowerCase?.() || '')
+    res.status(401).json({
+      success: false,
+      message: after.blocked
+        ? `Account temporarily locked. Try again in ${after.retryAfter} seconds.`
+        : `Invalid email or password (${after.remaining} attempt${after.remaining !== 1 ? 's' : ''} remaining)`,
+    })
     return
   }
 
@@ -77,6 +127,8 @@ export async function login(req: Request, res: Response): Promise<void> {
     res.status(403).json({ success: false, message: 'Account is deactivated' })
     return
   }
+
+  clearAttempts(email?.toLowerCase?.() || '')
 
   const tenant = parseTenant(row)!
   const token = generateToken(String(row.id), String(row.email), String(row.role))

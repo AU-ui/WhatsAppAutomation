@@ -18,6 +18,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   const navItems = [
     { path: '/',           icon: LayoutDashboard, label: 'Dashboard',               exact: true },
+    { path: '/inbox',      icon: MessageSquare,   label: 'Inbox'                                },
     { path: '/customers',  icon: Users,           label: niche.customersLabel                   },
     { path: '/products',   icon: Package,         label: niche.productsLabel                    },
     { path: '/orders',     icon: ShoppingBag,     label: niche.ordersLabel                      },
