@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { MessageSquare, Eye, EyeOff, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -100,9 +101,9 @@ export default function Login() {
           <div className="mt-6 pt-4 border-t border-gray-800 text-center">
             <p className="text-xs text-gray-600">
               Don't have an account?{' '}
-              <a href="#" className="text-green-400 hover:text-green-300 font-medium">
-                Contact sales
-              </a>
+              <Link to="/register" className="text-green-400 hover:text-green-300 font-medium">
+                Register your business
+              </Link>
             </p>
           </div>
         </div>

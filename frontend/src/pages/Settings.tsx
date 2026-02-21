@@ -6,6 +6,19 @@ import toast from 'react-hot-toast'
 import { Save, Wifi, Bot, Building, Clock, Link2, Eye, EyeOff } from 'lucide-react'
 
 const TONES = ['friendly', 'professional', 'casual', 'formal']
+const BUSINESS_TYPES = [
+  { value: 'hotel',              label: '🏨 Hotel / Guest House' },
+  { value: 'restaurant',         label: '🍽️ Restaurant / Food' },
+  { value: 'grocery',            label: '🛒 Grocery / Supermarket' },
+  { value: 'retail',             label: '🏪 Retail / E-commerce' },
+  { value: 'clinic',             label: '🏥 Clinic / Healthcare' },
+  { value: 'salon',              label: '💅 Salon / Spa / Beauty' },
+  { value: 'real_estate',        label: '🏠 Real Estate / Property' },
+  { value: 'agency_travel',      label: '✈️ Travel Agency' },
+  { value: 'agency_recruitment', label: '💼 Recruitment Agency' },
+  { value: 'wholesaler',         label: '📦 Wholesaler / Distributor' },
+  { value: 'general',            label: '🏢 General Business' },
+]
 const TIMEZONES = ['UTC', 'Asia/Kolkata', 'Asia/Dubai', 'Europe/London', 'America/New_York', 'Asia/Singapore', 'Asia/Jakarta']
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 type DayHours = { day: string; open: string; close: string; closed: boolean }
@@ -26,6 +39,7 @@ export default function Settings() {
   // ── Business profile ──
   const [bizForm, setBizForm] = useState({
     businessName: tenant?.businessName || '',
+    businessType: tenant?.businessType || 'general',
     phone: tenant?.phone || '',
     website: tenant?.website || '',
     address: tenant?.address || '',
@@ -150,6 +164,18 @@ export default function Settings() {
                 onChange={e => setBizForm(f => ({ ...f, [field]: e.target.value }))} />
             </div>
           ))}
+          <div>
+            <label className="label">Business Type / Niche</label>
+            <select className="input" value={bizForm.businessType}
+              onChange={e => setBizForm(f => ({ ...f, businessType: e.target.value }))}>
+              {BUSINESS_TYPES.map(bt => (
+                <option key={bt.value} value={bt.value}>{bt.label}</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-gray-600 mt-1">
+              Changes your WhatsApp reply menu, offer messages, and product types automatically
+            </p>
+          </div>
           <div>
             <label className="label">Currency</label>
             <select className="input" value={bizForm.currency}

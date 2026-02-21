@@ -133,7 +133,7 @@ export async function getMe(req: Request, res: Response): Promise<void> {
 }
 
 export async function updateProfile(req: Request, res: Response): Promise<void> {
-  const allowedUpdates = ['businessName', 'phone', 'website', 'address', 'currency', 'logoUrl', 'timezone']
+  const allowedUpdates = ['businessName', 'businessType', 'phone', 'website', 'address', 'currency', 'logoUrl', 'timezone']
   const sets: string[] = []
   const values: unknown[] = []
 
@@ -166,6 +166,7 @@ export async function updateSettings(req: Request, res: Response): Promise<void>
   const allowedSettings = [
     'welcomeMessage', 'awayMessage', 'aiEnabled', 'aiPersonality',
     'brandTone', 'autoReplyEnabled', 'humanHandoffEnabled', 'handoffKeywords', 'businessHours',
+    'facebookPageId', 'facebookPageAccessToken', 'facebookLeadWelcomeMessage',
   ]
 
   const row = db.prepare('SELECT settings FROM tenants WHERE id = ?').get(req.tenantId) as { settings: string }

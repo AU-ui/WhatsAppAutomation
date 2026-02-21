@@ -280,6 +280,87 @@ export async function notifyNewProduct(
   logger.info({ tenantId, product: productName, subscribers: subscribers.length }, 'New product notification sent')
 }
 
+// ─── Offer / Discount Notification (Auto-triggered, niche-specific) ────────
+
+export async function notifyOfferProduct(
+  tenantId: string,
+  productName: string,
+  productDescription: string,
+  originalPrice: number,
+  discountedPrice: number,
+  currency: string
+): Promise<void> {
+  const db = getDb()
+  const tenantRow = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId) as Record<string, unknown> | undefined
+  if (!tenantRow) return
+
+  const whatsapp = fromJson<{ phoneNumberId: string; accessToken: string }>(tenantRow.whatsapp as string, { phoneNumberId: '', accessToken: '' })
+  if (!whatsapp.phoneNumberId || !whatsapp.accessToken) return
+
+  const subscribers = db.prepare('SELECT phone, name FROM customers WHERE tenantId = ? AND isBlocked = 0 AND optIn = 1').all(tenantId) as { phone: string; name?: string }[]
+  if (subscribers.length === 0) return
+
+  const businessType = (tenantRow.businessType as string) || 'general'
+  const businessName = tenantRow.businessName as string
+  const savings = Math.round(((originalPrice - discountedPrice) / originalPrice) * 100)
+
+  const template = buildNicheOfferMessage(businessType, businessName, productName, productDescription, originalPrice, discountedPrice, currency, savings)
+
+  for (const sub of subscribers) {
+    const msg = template.replace(/\{\{name\}\}/gi, sub.name || 'Valued Customer')
+    await WhatsApp.sendText({ phoneNumberId: whatsapp.phoneNumberId, accessToken: whatsapp.accessToken, to: sub.phone, text: msg })
+    await sleep(SEND_DELAY_MS)
+  }
+
+  logger.info({ tenantId, product: productName, subscribers: subscribers.length, businessType }, 'Offer notification auto-sent')
+}
+
+function buildNicheOfferMessage(
+  businessType: string,
+  businessName: string,
+  productName: string,
+  description: string,
+  originalPrice: number,
+  discountedPrice: number,
+  currency: string,
+  savings: number
+): string {
+  const priceBlock = `~~${currency} ${originalPrice.toFixed(2)}~~ → *${currency} ${discountedPrice.toFixed(2)}* (${savings}% OFF)`
+  const desc = description ? `${description}\n\n` : ''
+
+  switch (businessType) {
+    case 'hotel':
+      return `🏨 *Exclusive Room Offer — ${businessName}!*\n\nHi {{name}}! 👋\n\n🛏️ *${productName}*\n${desc}💰 ${priceBlock}\n\n✨ Limited availability — book now!\nType *BOOK* to reserve.\n\n_Reply STOP to unsubscribe_`
+
+    case 'restaurant':
+      return `🍽️ *Today's Special — ${businessName}!*\n\nHi {{name}}! 👋\n\n🌟 *${productName}*\n${desc}💰 ${priceBlock}\n\n⏰ Limited time offer — order now!\nType *ORDER* to place your order.\n\n_Reply STOP to unsubscribe_`
+
+    case 'grocery':
+      return `🛒 *Flash Sale — ${businessName}!*\n\nHi {{name}}! 👋\n\n🎯 *${productName}*\n${desc}💰 ${priceBlock}\n\n⚡ Grab it before it's gone!\nType *CATALOG* to shop now.\n\n_Reply STOP to unsubscribe_`
+
+    case 'real_estate':
+      return `🏠 *Exclusive Property Deal — ${businessName}!*\n\nHi {{name}}! 👋\n\n🏗️ *${productName}*\n${desc}💰 ${priceBlock}\n\n📋 Limited offer — act fast!\nType *SITE VISIT* to schedule a viewing.\n\n_Reply STOP to unsubscribe_`
+
+    case 'clinic':
+      return `🏥 *Health Package Offer — ${businessName}!*\n\nHi {{name}}! 👋\n\n🩺 *${productName}*\n${desc}💰 ${priceBlock}\n\n📅 Book your appointment today!\nType *APPOINTMENT* to book.\n\n_Reply STOP to unsubscribe_`
+
+    case 'salon':
+      return `💅 *Beauty Deal — ${businessName}!*\n\nHi {{name}}! 👋\n\n✨ *${productName}*\n${desc}💰 ${priceBlock}\n\n📅 Limited slots — book now!\nType *BOOK* to schedule.\n\n_Reply STOP to unsubscribe_`
+
+    case 'agency_travel':
+      return `✈️ *Travel Deal — ${businessName}!*\n\nHi {{name}}! 👋\n\n🌍 *${productName}*\n${desc}💰 ${priceBlock}\n\n🗓️ Book now to lock in this price!\nType *BOOK* to enquire.\n\n_Reply STOP to unsubscribe_`
+
+    case 'wholesaler':
+      return `📦 *Wholesale Deal — ${businessName}!*\n\nHi {{name}}! 👋\n\n🎯 *${productName}*\n${desc}💰 ${priceBlock}\n\n📦 Bulk order discounts available!\nType *ORDER* to place your order.\n\n_Reply STOP to unsubscribe_`
+
+    case 'retail':
+      return `🏪 *Special Offer — ${businessName}!*\n\nHi {{name}}! 👋\n\n🎁 *${productName}*\n${desc}💰 ${priceBlock}\n\n🛍️ Shop now!\nType *CATALOG* to browse.\n\n_Reply STOP to unsubscribe_`
+
+    default:
+      return `🔥 *Special Offer — ${businessName}!*\n\nHi {{name}}! 👋\n\n🎁 *${productName}*\n${desc}💰 ${priceBlock}\n\n⚡ Limited time deal!\nType *OFFERS* to see all deals.\n\n_Reply STOP to unsubscribe_`
+  }
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────
 
 function sleep(ms: number): Promise<void> {
