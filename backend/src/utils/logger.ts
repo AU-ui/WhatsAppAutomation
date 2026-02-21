@@ -6,7 +6,11 @@ const { combine, timestamp, printf, colorize, errors } = winston.format
 
 const logFormat = printf(({ level, message, timestamp, stack, ...meta }) => {
   const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : ''
-  return `${timestamp} [${level}]: ${stack || message}${metaStr}`
+  // When logger is called with only an object (no string), message becomes '[object Object]'
+  const msg = (message === '[object Object]' && metaStr)
+    ? metaStr.trim()
+    : (stack || message)
+  return `${timestamp} [${level}]: ${msg}${message === '[object Object]' ? '' : metaStr}`
 })
 
 const transports: winston.transport[] = [
